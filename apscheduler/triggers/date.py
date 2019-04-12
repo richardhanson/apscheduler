@@ -49,3 +49,11 @@ class DateTrigger(BaseTrigger):
 
     def __repr__(self):
         return "<%s (run_date='%s')>" % (self.__class__.__name__, datetime_repr(self.run_date))
+
+    @property
+    def start_date(self):
+        return self.run_date
+
+    @property
+    def end_date(self):
+        return self.run_date

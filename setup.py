@@ -42,6 +42,7 @@ setup(
         'six >= 1.4.0',
         'pytz',
         'tzlocal >= 1.2',
+        'croniter >= 0.3.29',
     ],
     extras_require={
         ':python_version == "2.7"': ['futures', 'funcsigs'],
@@ -58,6 +59,8 @@ setup(
             'pytest < 3.7',
             'pytest-cov',
             'pytest-tornado5'
+            'tox',
+            'tox-pyenv'
         ],
         'testing:python_version == "2.7"': ['mock'],
         'testing:python_version == "3.4"': ['pytest_asyncio < 0.6'],

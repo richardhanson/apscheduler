@@ -1,5 +1,15 @@
 from apscheduler.triggers.base import BaseTrigger
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.util import obj_to_ref, ref_to_obj
+from functools import reduce
+from datetime import datetime, timedelta
+import math
+
+
+def lcm(x: int, y: int) -> int:
+    return int(x * y / math.gcd(x, y))
 
 
 class BaseCombiningTrigger(BaseTrigger):
@@ -50,16 +60,57 @@ class AndTrigger(BaseCombiningTrigger):
 
     __slots__ = ()
 
-    def get_next_fire_time(self, previous_fire_time, now):
-        while True:
-            fire_times = [trigger.get_next_fire_time(previous_fire_time, now)
-                          for trigger in self.triggers]
-            if None in fire_times:
-                return None
-            elif min(fire_times) == max(fire_times):
-                return self._apply_jitter(fire_times[0], self.jitter, now)
+    def _extract_time_length(self, previous_fire_time, now):
+        ret = []
+        for trigger in self.triggers:
+            if isinstance(trigger, IntervalTrigger):
+                ret.append(
+                    (int(trigger.interval_length), trigger.start_date, trigger.end_date)
+                )
             else:
-                now = max(fire_times)
+                ret.append(
+                    (trigger.get_next_fire_time(previous_fire_time, now), trigger.start_date,
+                     trigger.end_date)
+                )
+            # elif isinstance(trigger, CronTrigger):
+            #     cron_next = trigger.get_next_fire_time(previous_fire_time, now)
+            #     ret.append((int((now - cron_next).total_seconds()), trigger.start_date,
+            #                 trigger.end_date))
+            # elif isinstance(trigger, DateTrigger):
+            #     ret.append((trigger.run_date - previous_fire_time, None, None))
+        return ret
+
+    def get_next_fire_time(self, previous_fire_time, now):
+        # TODO so this doesn't work because it doesn't know about start/end times of triggers...
+        if not self.triggers:
+            return
+        if len(self.triggers) == 1:
+            return self.triggers[0].get_next_fire_time(previous_fire_time, now)
+
+        # lengths = self._extract_time_length(previous_fire_time, now)
+        lengths = map(lambda x: x.interval_length if isinstance(x, IntervalTrigger), self.triggers)
+        # dates = list(filter(lambda x: isinstance(x, datetime), lengths))
+        # not_dates = filter(lambda x: isinstance(x, int), lengths)
+        lcm_secs = reduce(lcm, lengths)
+        dates = list(filter(lambda x: not isinstance(x, IntervalTrigger), self.triggers))
+
+        for d in dates:
+            if not (d.get_next_fire_time(previous_fire_time, now) - now).total_seconds() / lcm_secs:
+                return None
+        if dates:
+            while True:
+                fire_times = [trigger.get_next_fire_time(previous_fire_time, now)
+                              for trigger in self.triggers if isinstance(trigger, DateTrigger)]
+                if None in fire_times:
+                    return None
+                elif min(fire_times) == max(fire_times):
+                    return self._apply_jitter(fire_times[0], self.jitter, now)
+                else:
+                    now = max(fire_times)
+        elif previous_fire_time is not None:
+            return previous_fire_time + timedelta(seconds=lcm_secs)
+        else:
+            return now + timedelta(seconds=lcm_secs)
 
     def __str__(self):
         return 'and[{}]'.format(', '.join(str(trigger) for trigger in self.triggers))

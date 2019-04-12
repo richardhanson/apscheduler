@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from tzlocal import get_localzone
 import six
+from croniter import croniter
 
 from apscheduler.triggers.base import BaseTrigger
 from apscheduler.triggers.cron.fields import (
@@ -43,11 +44,11 @@ class CronTrigger(BaseTrigger):
         'second': BaseField
     }
 
-    __slots__ = 'timezone', 'start_date', 'end_date', 'fields', 'jitter'
+    __slots__ = 'timezone', 'start_date', 'end_date', 'fields', 'jitter', 'crontab'
 
     def __init__(self, year=None, month=None, day=None, week=None, day_of_week=None, hour=None,
                  minute=None, second=None, start_date=None, end_date=None, timezone=None,
-                 jitter=None):
+                 jitter=None, crontab=None):
         if timezone:
             self.timezone = astimezone(timezone)
         elif isinstance(start_date, datetime) and start_date.tzinfo:
@@ -82,6 +83,10 @@ class CronTrigger(BaseTrigger):
             field = field_class(field_name, exprs, is_default)
             self.fields.append(field)
 
+        if crontab is None:
+            crontab = ' '.join([str(x) for expr in self.fields for x in expr.expressions][::-1])
+        self.crontab = croniter(crontab, self.start_date)
+
     @classmethod
     def from_crontab(cls, expr, timezone=None):
         """
@@ -100,7 +105,7 @@ class CronTrigger(BaseTrigger):
             raise ValueError('Wrong number of fields; got {}, expected 5'.format(len(values)))
 
         return cls(minute=values[0], hour=values[1], day=values[2], month=values[3],
-                   day_of_week=values[4], timezone=timezone)
+                   day_of_week=values[4], timezone=timezone, crontab=expr)
 
     def _increment_field_value(self, dateval, fieldnum):
         """
@@ -113,6 +118,7 @@ class CronTrigger(BaseTrigger):
             incremented
         :rtype: tuple
         """
+        # TODO update self.cron
 
         values = {}
         i = 0
@@ -146,6 +152,7 @@ class CronTrigger(BaseTrigger):
         return self.timezone.normalize(dateval + difference), fieldnum
 
     def _set_field_value(self, dateval, fieldnum, new_value):
+        # TODO update self.cron
         values = {}
         for i, field in enumerate(self.fields):
             if field.REAL:

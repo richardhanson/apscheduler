@@ -65,6 +65,24 @@ class IntervalTrigger(BaseTrigger):
         if not self.end_date or next_fire_time <= self.end_date:
             return self.timezone.normalize(next_fire_time)
 
+    def get_next_fire_time_tuple(self, previous_fire_time, now):
+        if previous_fire_time:
+            next_fire_time = previous_fire_time + self.interval
+        elif self.start_date > now:
+            next_fire_time = self.start_date
+        else:
+            timediff_seconds = timedelta_seconds(now - self.start_date)
+            next_interval_num = int(ceil(timediff_seconds / self.interval_length))
+            next_fire_time = self.start_date + self.interval * next_interval_num
+
+        if self.jitter is not None:
+            next_fire_time = self._apply_jitter(next_fire_time, self.jitter, now)
+
+        if not self.end_date or next_fire_time <= self.end_date:
+            return self.timezone.normalize(next_fire_time), self.start_date, self.end_date
+
+
+
     def __getstate__(self):
         return {
             'version': 2,

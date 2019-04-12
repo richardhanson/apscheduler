@@ -609,6 +609,13 @@ class TestAndTrigger(object):
             CronTrigger(month='6-9', day='*/3', end_date=timezone.localize(datetime(2017, 9, 7)))
         ])
 
+    @pytest.fixture
+    def interval_trigger(self, timezone):
+        return AndTrigger([
+            IntervalTrigger(seconds=10, end_date=timezone.localize(datetime(2017, 8, 10))),
+            IntervalTrigger(seconds=7, end_date=timezone.localize(datetime(2017, 9, 7)))
+        ])
+
     @pytest.mark.parametrize('start_time, expected', [
         (datetime(2017, 8, 6), datetime(2017, 8, 7)),
         (datetime(2017, 8, 10, 1), None)
@@ -647,6 +654,10 @@ class TestAndTrigger(object):
 
         for attr in BaseCombiningTrigger.__slots__:
             assert repr(getattr(trigger2, attr)) == repr(getattr(trigger, attr))
+
+    def test_next_fire_time_for_intervals(self, interval_trigger, timezone, start_time=datetime(2017, 8, 6)):
+        expected = timezone.localize(datetime(2017, 8, 6, 0, 1, 10))
+        assert interval_trigger.get_next_fire_time(None, timezone.localize(start_time)) == expected
 
 
 class TestOrTrigger(object):
